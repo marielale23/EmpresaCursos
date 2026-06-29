@@ -1,185 +1,84 @@
--- =====================================================
---  BDCursosEmpresas
--- =====================================================
-USE MASTER;
-GO
-IF EXISTS (SELECT * FROM sys.databases WHERE name = 'BDCursosEmpresas')
-BEGIN
-    DROP DATABASE BDCursosEmpresas;
-END;
-GO
-CREATE DATABASE BDCursosEmpresas
-COLLATE Latin1_General_CI_AI;
-GO
-
-USE BDCursosEmpresas;
-GO
-
-CREATE TABLE Roles (
-    IDRol       INT          IDENTITY(1,1) NOT NULL,
-    nombre      VARCHAR(50)  NOT NULL,
-    descripcion VARCHAR(255),
-
-    CONSTRAINT PK_IDRol PRIMARY KEY (IDRol)
-);
-
--- =====================================================
--- EMPRESAS Depende de: Roles
--- =====================================================
-CREATE TABLE Empresas (
-    IDEmpresa INT          IDENTITY(1,1) NOT NULL,
-    nombre    VARCHAR(255) NOT NULL,
-    IDRol     INT          NOT NULL,
-
-    CONSTRAINT PK_IDEmpresa PRIMARY KEY (IDEmpresa),
-
-    CONSTRAINT FK_Empresas_Roles FOREIGN KEY (IDRol) REFERENCES Roles (IDRol)
-);
-
-CREATE TABLE TiposSuscripcion (
-    IDTipoSuscripcion INT          IDENTITY(1,1) NOT NULL,
-    nombre            VARCHAR(50)  NOT NULL,
-    Detalle           VARCHAR(100) NOT NULL,
-    Duracion          INT,                      -- duracion en dias, NULL = sin vencimiento
-    Precio            MONEY        NOT NULL,
-
-    CONSTRAINT PK_IDTipoSuscripcion PRIMARY KEY (IDTipoSuscripcion)
-);
-
-
-CREATE TABLE USUARIO (
-    IDUsuario         INT          IDENTITY(1,1) NOT NULL,
-    nombre            VARCHAR(50),
-    apellido          VARCHAR(50),
-    mail              VARCHAR(100),
-    contrasena        VARCHAR(255),              -- guardar siempre el hash, nunca texto plano
-    FechaDeInscripcion DATE         NULL,
-
-    CONSTRAINT PK_IDUsuario PRIMARY KEY (IDUsuario)
-);
-
--- =====================================================
--- SUSCRIPCION Depende de: TiposSuscripcion, USUARIO
--- =====================================================
-CREATE TABLE Suscripcion (
-    IDSuscripcion     INT  IDENTITY(1,1) NOT NULL,
-    IDTipoSuscripcion INT  NOT NULL,
-    IDUsuario         INT  NOT NULL,
-    FechaInicio       DATE DEFAULT (GETDATE()),
-    FechaFinalizacion DATE NULL,
-    Activa            BIT  DEFAULT (0),
-
-    CONSTRAINT PK_IDSuscripcion PRIMARY KEY (IDSuscripcion),
-
-    CONSTRAINT FK_Suscripcion_TiposSuscripcion
-        FOREIGN KEY (IDTipoSuscripcion) REFERENCES TiposSuscripcion (IDTipoSuscripcion),
-
-    CONSTRAINT FK_Suscripcion_Usuario
-        FOREIGN KEY (IDUsuario) REFERENCES USUARIO (IDUsuario)
-);
-
--- =====================================================
--- CURSO Depende de: Empresas
--- =====================================================
 CREATE TABLE Curso (
-    IDCurso      INT          IDENTITY(1,1) NOT NULL,
-    nombre       VARCHAR(100) NOT NULL,
-    descripcion  VARCHAR(250),
-    IDEmpresa    INT          NOT NULL,
-
-    CONSTRAINT PK_IDCurso PRIMARY KEY (IDCurso),
-
-    CONSTRAINT FK_Curso_Empresa
-        FOREIGN KEY (IDEmpresa) REFERENCES Empresas (IDEmpresa)
+    IDCurso INT PRIMARY KEY IDENTITY(1,1),
+    IDRol INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(250),
+    DuracionHoras INT NULL,
+    CONSTRAINT FK_Curso_Roles FOREIGN KEY (IDRol) REFERENCES Roles(IDRol)
 );
-
--- =====================================================
--- 7. ARCHIVO Depende de: Curso, USUARIO
--- =====================================================
+GO
+CREATE TABLE CursoInstructor (
+    IDCurso INT NOT NULL,
+    IDInstructor INT NOT NULL,
+    CONSTRAINT PK_CursoInstructor PRIMARY KEY (IDCurso, IDInstructor),
+    CONSTRAINT FK_CursoInstructor_Curso FOREIGN KEY (IDCurso) REFERENCES Curso(IDCurso),
+    CONSTRAINT FK_CursoInstructor_Instructor FOREIGN KEY (IDInstructor) REFERENCES Instructor(IDInstructor)
+);
+GO
 CREATE TABLE Archivo (
-    IDArchivo  INT IDENTITY(1,1) NOT NULL,
-    IDCurso    INT NOT NULL,
-    IDUsuario  INT NOT NULL,
-    Completado BIT DEFAULT (0),
-
-    CONSTRAINT PK_IDArchivo PRIMARY KEY (IDArchivo),
-
-    CONSTRAINT FK_Archivo_Curso
-        FOREIGN KEY (IDCurso)   REFERENCES Curso   (IDCurso),
-
-    CONSTRAINT FK_Archivo_Usuario
-        FOREIGN KEY (IDUsuario) REFERENCES USUARIO (IDUsuario)
+    IDArchivo INT PRIMARY KEY IDENTITY(1,1),
+    IDCurso INT NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    formato VARCHAR(20) NOT NULL,      -- ej: 'video', 'pdf'
+    tamaño INT NULL,                   -- en KB. NULL si es solo un link externo
+    link VARCHAR(255) NULL,            -- URL externa (ej. YouTube) del recurso
+    CONSTRAINT FK_Archivo_Curso FOREIGN KEY (IDCurso) REFERENCES Curso(IDCurso)
 );
-
--- =====================================================
--- 8. INSCRIPCION Depende de: USUARIO, Curso
--- =====================================================
+GO
+CREATE TABLE ProgresoArchivo (
+    IDProgreso INT PRIMARY KEY IDENTITY(1,1),
+    IDUsuario INT NOT NULL,
+    IDArchivo INT NOT NULL,
+    Completado BIT NOT NULL DEFAULT 0,
+    FechaCompletado DATE NULL,
+    CONSTRAINT UQ_ProgresoArchivo UNIQUE (IDUsuario, IDArchivo),
+    CONSTRAINT FK_ProgresoArchivo_Usuario FOREIGN KEY (IDUsuario) REFERENCES Usuario(IDUsuario),
+    CONSTRAINT FK_ProgresoArchivo_Archivo FOREIGN KEY (IDArchivo) REFERENCES Archivo(IDArchivo)
+);
+GO
 CREATE TABLE Inscripcion (
-    IDInscripcion INT IDENTITY(1,1) NOT NULL,
-    IDUsuario     INT NOT NULL,
-    IDCurso       INT NOT NULL,
-    Completado    BIT NOT NULL DEFAULT (0),
-
-    CONSTRAINT PK_IDInscripcion PRIMARY KEY (IDInscripcion),
-
-    CONSTRAINT FK_Inscripcion_Usuario
-        FOREIGN KEY (IDUsuario) REFERENCES USUARIO (IDUsuario),
-
-    CONSTRAINT FK_Inscripcion_Curso
-        FOREIGN KEY (IDCurso)   REFERENCES Curso   (IDCurso)
+    IDInscripcion INT PRIMARY KEY IDENTITY(1,1),
+    IDUsuario INT NOT NULL,
+    IDCurso INT NOT NULL,
+    FechaInscripcion DATE DEFAULT GETDATE(),
+    CONSTRAINT UQ_Inscripcion UNIQUE (IDUsuario, IDCurso),
+    CONSTRAINT FK_Inscripcion_Usuario FOREIGN KEY (IDUsuario) REFERENCES Usuario(IDUsuario),
+    CONSTRAINT FK_Inscripcion_Curso FOREIGN KEY (IDCurso) REFERENCES Curso(IDCurso)
 );
-
--- =====================================================
--- EVALUACION Depende de: Curso
--- =====================================================
+GO
 CREATE TABLE Evaluacion (
-    IDEvaluacion INT         IDENTITY(1,1) NOT NULL,
-    IDCurso      INT         NOT NULL,
-    Titulo       VARCHAR(50),
-    Puntaje      INT         NULL,
-
-    CONSTRAINT PK_IDEvaluacion PRIMARY KEY (IDEvaluacion),
-
-    CONSTRAINT FK_Evaluacion_Curso
-        FOREIGN KEY (IDCurso) REFERENCES Curso (IDCurso)
+    IDEvaluacion INT PRIMARY KEY IDENTITY(1,1),
+    IDCurso INT NOT NULL,
+    Titulo VARCHAR(50),
+    PuntajeMinimo INT,      -- nota minima para aprobar
+    CONSTRAINT FK_Evaluacion_Curso FOREIGN KEY (IDCurso) REFERENCES Curso(IDCurso)
 );
-
--- =====================================================
---  RESULTADO EVALUACION Depende de: USUARIO, Evaluacion
--- =====================================================
+GO
 CREATE TABLE ResultadoEvaluacion (
-    IDResultado  INT IDENTITY(1,1) NOT NULL,
+    IDResultado INT PRIMARY KEY IDENTITY(1,1),
     IDEvaluacion INT NOT NULL,
-    IDUsuario    INT NOT NULL,
-    Aprobado     BIT DEFAULT (0),
-
-    CONSTRAINT PK_IDResultado PRIMARY KEY (IDResultado),
-
-    CONSTRAINT FK_ResultadoEval_Usuario
-        FOREIGN KEY (IDUsuario)    REFERENCES USUARIO    (IDUsuario),
-
-    CONSTRAINT FK_ResultadoEval_Evaluacion
-        FOREIGN KEY (IDEvaluacion) REFERENCES Evaluacion (IDEvaluacion)
+    IDUsuario INT NOT NULL,
+    NotaObtenida INT,
+    Aprobado BIT DEFAULT 0,
+    CONSTRAINT UQ_ResultadoEvaluacion UNIQUE (IDEvaluacion, IDUsuario),
+    CONSTRAINT FK_ResultadoEvaluacion_Evaluacion FOREIGN KEY (IDEvaluacion) REFERENCES Evaluacion(IDEvaluacion),
+    CONSTRAINT FK_ResultadoEvaluacion_Usuario FOREIGN KEY (IDUsuario) REFERENCES Usuario(IDUsuario)
 );
-
--- =====================================================
--- CERTIFICADOS Depende de: Curso, USUARIO, ResultadoEvaluacion
--- =====================================================
-CREATE TABLE Certificados (
-    IDCertificado INT  IDENTITY(1,1) NOT NULL,
-    IDCurso       INT  NOT NULL,
-    IDResultado   INT  NOT NULL,
-    IDUsuario     INT  NOT NULL,
-    FechaDeEmision DATE DEFAULT (GETDATE()),
-
-    CONSTRAINT PK_Certificados PRIMARY KEY (IDCertificado),
-
-    CONSTRAINT FK_Certificados_Curso
-        FOREIGN KEY (IDCurso)     REFERENCES Curso               (IDCurso),
-
-    CONSTRAINT FK_Certificados_Usuario
-        FOREIGN KEY (IDUsuario)   REFERENCES USUARIO             (IDUsuario),
-
-    CONSTRAINT FK_Certificados_Resultado
-        FOREIGN KEY (IDResultado) REFERENCES ResultadoEvaluacion (IDResultado)
+GO
+CREATE TABLE Certificado (
+    IDCertificado INT PRIMARY KEY IDENTITY(1,1),
+    IDResultado INT NOT NULL UNIQUE,
+    FechaDeEmision DATE DEFAULT GETDATE(),
+    CONSTRAINT FK_Certificado_ResultadoEvaluacion FOREIGN KEY (IDResultado) REFERENCES ResultadoEvaluacion(IDResultado)
 );
+GO
+CREATE TABLE Resena (
+    IDResena INT PRIMARY KEY IDENTITY(1,1),
+    IDCertificado INT NOT NULL UNIQUE,
+    Comentario VARCHAR(500),
+    Puntuacion INT,        -- escala 1 a 5
+    Fecha DATE DEFAULT GETDATE(),
+    CONSTRAINT FK_Resena_Certificado FOREIGN KEY (IDCertificado) REFERENCES Certificado(IDCertificado),
+    CONSTRAINT CK_Resena_Puntuacion CHECK (Puntuacion BETWEEN 1 AND 5)
+);
+GO
